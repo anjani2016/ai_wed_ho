@@ -10,13 +10,27 @@ from dotenv import load_dotenv
 
 from src.core.use_cases.inspection_orchestrator import InspectionOrchestrator
 from src.infrastructure.adapters.ultralytics_adapter import UltralyticsAdapter
-from src.infrastructure.adapters.mongo_adapter import MongoAdapter
 from src.infrastructure.adapters.local_compliance_adapter import LocalComplianceAdapter
 from src.preprocessing.processor import WeldProcessor
 
 from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
+
+# ── Database adapter factory ──────────────────────────────────────────────────
+# Uses DynamoDB when AWS credentials are present; falls back to SQLite locally.
+def _get_db_adapter():
+    aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
+    if aws_key and aws_key != "your_access_key_here":
+        try:
+            from src.infrastructure.adapters.dynamo_adapter import DynamoDBAdapter
+            return DynamoDBAdapter()
+        except Exception as e:
+            logging.warning(f"DynamoDB unavailable ({e}), falling back to SQLite.")
+    # SQLite fallback for local dev / Vercel preview without AWS creds
+    from src.infrastructure.adapters.mongo_adapter import MongoAdapter  # legacy SQLite path
+    sqlite_path = os.environ.get("SQLITE_DB_PATH", "/tmp/local_ndt.db")
+    return MongoAdapter(sqlite_path)
 
 app = FastAPI(title="AI Weld Inspector Backend", version="1.0.0")
 
@@ -29,12 +43,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create raw/annotated storage directories
-os.makedirs("data/raw", exist_ok=True)
-os.makedirs("data/inspections/annotated", exist_ok=True)
+# Storage directories — use /tmp on Vercel (read-only except /tmp), local data/ elsewhere
+_DATA_ROOT = "/tmp" if os.environ.get("VERCEL") else "data"
+os.makedirs(f"{_DATA_ROOT}/raw", exist_ok=True)
+os.makedirs(f"{_DATA_ROOT}/inspections/annotated", exist_ok=True)
+os.makedirs(f"{_DATA_ROOT}/inspections/reports", exist_ok=True)
 
-# Mount static folder to serve files (images) to frontend
-app.mount("/static", StaticFiles(directory="data/inspections"), name="static")
+# Mount static folder (skipped on Vercel — use CDN/S3 for image serving in production)
+if not os.environ.get("VERCEL"):
+    app.mount("/static", StaticFiles(directory=f"{_DATA_ROOT}/inspections"), name="static")
 
 @app.post("/inspect")
 async def inspect_weld(
@@ -56,9 +73,8 @@ async def inspect_weld(
     """
     if gemini_api_key:
         os.environ["GEMINI_API_KEY"] = gemini_api_key
-        
-    mcp_url = os.environ.get("MONGODB_URI", "")
-    db_adapter = MongoAdapter(mcp_url)
+
+    db_adapter = _get_db_adapter()
     
     # Compute SHA-256 image hash
     file.file.seek(0)
@@ -76,8 +92,8 @@ async def inspect_weld(
     # Generate unique report ID
     report_id = db_adapter.generate_report_id()
     
-    raw_storage_path = f"data/raw/{report_id}.jpg"
-    annotated_storage_path = f"data/inspections/annotated/{report_id}.jpg"
+    raw_storage_path = f"{_DATA_ROOT}/raw/{report_id}.jpg"
+    annotated_storage_path = f"{_DATA_ROOT}/inspections/annotated/{report_id}.jpg"
     
     # Save the uploaded file directly to our raw storage path
     with open(raw_storage_path, "wb") as buffer:
@@ -201,7 +217,7 @@ async def inspect_weld(
         # 9. Generate and save the PDF report to disk
         try:
             from src.reporting.reporter import WeldReporter
-            pdf_dir = "data/inspections/reports"
+            pdf_dir = f"{_DATA_ROOT}/inspections/reports"
             os.makedirs(pdf_dir, exist_ok=True)
             pdf_path = f"{pdf_dir}/{report_id}.pdf"
             
@@ -310,9 +326,8 @@ async def get_records(x_user_role: str = Header("Inspector")):
     """
     Fetches all saved NDT reports from the database adapter.
     """
-    mcp_url = os.environ.get("MONGODB_URI", "")
     try:
-        db_adapter = MongoAdapter(mcp_url)
+        db_adapter = _get_db_adapter()
         # Log Audit event
         db_adapter.log_audit_event({
             "user_id": x_user_role,
@@ -330,10 +345,9 @@ async def clear_records(x_user_role: str = Header("Inspector")):
     Clears all saved NDT reports from the database.
     Only users with Auditor or Admin roles are permitted to perform this action.
     """
+    db_adapter = _get_db_adapter()
     # RBAC authorization gate
     if x_user_role not in ["Admin", "Auditor"]:
-        mcp_url = os.environ.get("MONGODB_URI", "")
-        db_adapter = MongoAdapter(mcp_url)
         db_adapter.log_audit_event({
             "user_id": x_user_role,
             "action": "UNAUTHORIZED_CLEAR_ATTEMPT",
@@ -341,9 +355,7 @@ async def clear_records(x_user_role: str = Header("Inspector")):
         })
         raise HTTPException(status_code=403, detail="Role unauthorized to perform this operation.")
 
-    mcp_url = os.environ.get("MONGODB_URI", "")
     try:
-        db_adapter = MongoAdapter(mcp_url)
         # Log Audit event
         db_adapter.log_audit_event({
             "user_id": x_user_role,
@@ -366,9 +378,8 @@ async def submit_feedback(
     Submits performer remarks or supervisor review, updates workflow state,
     and regenerates the signed PDF report dynamically.
     """
-    mcp_url = os.environ.get("MONGODB_URI", "")
-    db_adapter = MongoAdapter(mcp_url)
-    
+    db_adapter = _get_db_adapter()
+
     # 1. Fetch record from database
     record = db_adapter.get_record_by_report_id(report_id)
     if not record:
