@@ -1,0 +1,50 @@
+# HuggingFace Spaces Dockerfile — Full ML Backend
+# Deployed as a Docker Space at: https://huggingface.co/spaces/anjani2016/weld-inspector
+#
+# Free tier: 2 vCPU, 16 GB RAM — sufficient for CPU inference with RT-DETR + YOLO
+# Model weights loaded from HuggingFace Hub (no git-lfs needed)
+
+FROM python:3.11-slim
+
+# System deps for opencv + torch
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    wget \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements first for layer caching
+COPY requirements.txt .
+
+# Install all deps (full — torch, ultralytics, transformers, opencv)
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ ./src/
+COPY weights/ ./weights/
+COPY .env.example .env
+
+# Download model.safetensors from HuggingFace Hub at build time
+# This bakes the weights into the image so no runtime download needed
+RUN python -c "\
+from huggingface_hub import hf_hub_download; \
+import shutil, os; \
+path = hf_hub_download(repo_id='anjani2016/weld-rtdetr', filename='model.safetensors'); \
+os.makedirs('weights/hf_weld_rtdetr_final', exist_ok=True); \
+shutil.copy(path, 'weights/hf_weld_rtdetr_final/model.safetensors'); \
+print('Model downloaded successfully')"
+
+# Copy HF model config files
+COPY weights/hf_weld_rtdetr_final/ ./weights/hf_weld_rtdetr_final/
+
+# HuggingFace Spaces runs on port 7860
+EXPOSE 7860
+
+# Start FastAPI — HF Spaces expects the app on 0.0.0.0:7860
+CMD ["uvicorn", "src.api.server:app", "--host", "0.0.0.0", "--port", "7860"]
