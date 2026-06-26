@@ -62,13 +62,13 @@ def main():
     except Exception as e:
         print(f"  ⚠️  {e} — continuing anyway")
 
-    # 2 — Clone the Space repo
-    print(f"\n[2/4] Cloning Space repo...")
+    # 2 — Prepare temp directory
+    print(f"\n[2/4] Preparing temporary deployment directory...")
     if REPO_DIR.exists():
         shutil.rmtree(REPO_DIR)
-    run(f"git clone https://huggingface.co/spaces/{SPACE_ID} {REPO_DIR}")
+    REPO_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 3 — Copy project files into the clone
+    # 3 — Copy project files into the directory
     print(f"\n[3/4] Copying project files...")
     for src_rel, dst_rel in FILES_TO_COPY.items():
         src = PROJECT_ROOT / src_rel
@@ -84,11 +84,19 @@ def main():
         shutil.copytree(src, dst, ignore=shutil.ignore_patterns("*.safetensors"))
         print(f"  copied {src_rel}/ → {dst_rel}/  (safetensors excluded — pulled by Docker)")
 
-    # 4 — Commit and push to HF
-    print(f"\n[4/4] Pushing to HuggingFace...")
-    run("git add -A", cwd=REPO_DIR)
-    run('git commit -m "deploy: WeldVision AI FastAPI ML backend"', cwd=REPO_DIR)
-    run("git push", cwd=REPO_DIR)
+    # 4 — Upload via huggingface_hub API
+    print(f"\n[4/4] Uploading to HuggingFace Space...")
+    try:
+        api.upload_folder(
+            folder_path=str(REPO_DIR),
+            repo_id=SPACE_ID,
+            repo_type="space",
+            commit_message="deploy: WeldVision AI FastAPI ML backend",
+        )
+        print("  ✅ Upload successful!")
+    except Exception as e:
+        print(f"  ❌ Upload failed: {e}")
+        sys.exit(1)
 
     print(f"""
 ✅ Deploy complete!

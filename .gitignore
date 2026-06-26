@@ -31,6 +31,7 @@ mermaid-filter.err
 weights/*
 !weights/hf_weld_rtdetr_final/
 !weights/hf_weld_rtdetr_final/**
+weights/hf_weld_rtdetr_final/*.safetensors
 !weights/m60.pt
 
 # Ignore entire models/ directory (pre-training checkpoints)

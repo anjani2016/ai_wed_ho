@@ -14,6 +14,12 @@ import os
 import sys
 from botocore.exceptions import ClientError
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 TABLE_NAME = os.getenv("DYNAMODB_TABLE_NAME", "weld-inspections")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 

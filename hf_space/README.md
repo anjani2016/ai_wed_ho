@@ -1,12 +1,12 @@
 ---
 title: WeldVision AI Inspector
 emoji: 🔧
-colorFrom: orange
+colorFrom: red
 colorTo: red
 sdk: docker
 pinned: true
 license: mit
-short_description: AI-powered NDT weld inspection — RT-DETR + YOLO on radiography images
+short_description: AI-powered NDT weld inspection using RT-DETR & YOLO
 ---
 
 # WeldVision AI — NDT Inspection Backend
