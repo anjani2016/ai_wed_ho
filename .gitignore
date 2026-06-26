@@ -16,6 +16,7 @@ azure_logs/
 
 # Secrets – never commit
 .env
+*.pem
 
 # Build artifacts
 mermaid-filter.err
