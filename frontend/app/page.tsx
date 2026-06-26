@@ -1,65 +1,115 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useCallback, useEffect, useState } from 'react'
+import { Sidebar } from '@/components/sidebar'
+import { ToastProvider } from '@/components/toast'
+import { InspectPage } from '@/components/pages/inspect-page'
+import { RecordsPage } from '@/components/pages/records-page'
+import { AnalyticsPage } from '@/components/pages/analytics-page'
+import { AuditPage } from '@/components/pages/audit-page'
+import { SettingsPage } from '@/components/pages/settings-page'
+import { SECTION_META, type Section } from '@/lib/sections'
+import type { AuditEvent, InspectionRecord } from '@/lib/types'
+import { MOCK_AUDIT, MOCK_RECORDS } from '@/lib/mock-data'
+import { checkLicense, fetchRecords } from '@/lib/api'
+import { getRole } from '@/lib/config'
+
+type ConnStatus = 'connecting' | 'online' | 'offline'
+
+export default function Page() {
+  const [section, setSection] = useState<Section>('inspect')
+  const [records, setRecords] = useState<InspectionRecord[]>(MOCK_RECORDS)
+  const [audit, setAudit] = useState<AuditEvent[]>(MOCK_AUDIT)
+  const [status, setStatus] = useState<ConnStatus>('connecting')
+
+  const addAudit = useCallback(
+    (action: AuditEvent['action'], details: string) => {
+      setAudit((prev) => [
+        {
+          id: `EVT-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          role: getRole(),
+          action,
+          details,
+        },
+        ...prev,
+      ])
+    },
+    [],
+  )
+
+  const addRecord = useCallback((record: InspectionRecord) => {
+    setRecords((prev) => [record, ...prev])
+  }, [])
+
+  const updateRecord = useCallback(
+    (reportId: string, patch: Partial<InspectionRecord>) => {
+      setRecords((prev) =>
+        prev.map((r) => (r.report_id === reportId ? { ...r, ...patch } : r)),
+      )
+    },
+    [],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    async function init() {
+      const license = await checkLicense()
+      if (cancelled) return
+      setStatus(license.ok ? 'online' : 'offline')
+      if (license.ok) {
+        try {
+          const fetched = await fetchRecords()
+          if (!cancelled && fetched.length) setRecords(fetched)
+        } catch {
+          /* keep mock data */
+        }
+      }
+    }
+    init()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const meta = SECTION_META[section]
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <ToastProvider>
+      <div className="min-h-screen bg-background">
+        <Sidebar active={section} onNavigate={setSection} status={status} />
+        <div className="pl-60">
+          <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-8 py-4 backdrop-blur-md">
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-foreground">
+                {meta.title}
+              </h1>
+              <p className="text-sm text-muted-foreground">{meta.subtitle}</p>
+            </div>
+          </header>
+          <main key={section} className="animate-fade-in-up p-8">
+            {section === 'inspect' && (
+              <InspectPage addRecord={addRecord} addAudit={addAudit} />
+            )}
+            {section === 'records' && (
+              <RecordsPage
+                records={records}
+                updateRecord={updateRecord}
+                addAudit={addAudit}
+              />
+            )}
+            {section === 'analytics' && <AnalyticsPage records={records} />}
+            {section === 'audit' && <AuditPage events={audit} />}
+            {section === 'settings' && (
+              <SettingsPage
+                status={status}
+                setStatus={setStatus}
+                addAudit={addAudit}
+              />
+            )}
+          </main>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+      </div>
+    </ToastProvider>
+  )
 }
