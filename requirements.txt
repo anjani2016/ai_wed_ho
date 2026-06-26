@@ -1,29 +1,20 @@
-# Computer Vision & AI
-ultralytics
-opencv-python-headless
-torch
-huggingface_hub
-transformers
-numpy
-pandas
-grad-cam
-matplotlib
+# Vercel-only requirements — lightweight, no PyTorch/CV
+# Total install size: ~80 MB (well under 500 MB limit)
 
-# API & Backend
+# API & web
 fastapi
 uvicorn
 python-multipart
-requests
 pydantic
 python-dotenv
+requests
 
-# AWS
+# AWS DynamoDB
 boto3
 
-# Reporting
+# Reporting (PDF generation, no CV deps)
 reportlab
 fpdf2
 
-# Testing
-pytest
-pytest-asyncio
+# Google AI (Gemini — text only, no vision models)
+google-genai

@@ -25,7 +25,7 @@ PROJECT_ROOT = Path(__file__).parent
 FILES_TO_COPY = {
     "hf_space/Dockerfile":           "Dockerfile",
     "hf_space/README.md":            "README.md",
-    "requirements.txt":              "requirements.txt",
+    "requirements-ml.txt":           "requirements.txt",
 }
 
 DIRS_TO_COPY = {
