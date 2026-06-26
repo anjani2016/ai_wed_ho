@@ -35,7 +35,7 @@ COPY .env.example .env
 RUN python -c "\
 from huggingface_hub import hf_hub_download; \
 import shutil, os; \
-path = hf_hub_download(repo_id='anjani2016/weld-rtdetr', filename='model.safetensors'); \
+path = hf_hub_download(repo_id='anjanid/RT-DETR-weld-trained', filename='model.safetensors'); \
 os.makedirs('weights/hf_weld_rtdetr_final', exist_ok=True); \
 shutil.copy(path, 'weights/hf_weld_rtdetr_final/model.safetensors'); \
 print('Model downloaded successfully')"
