@@ -185,3 +185,114 @@ def inspect_stub():
             "ml_backend_url": ml_url,
         },
     )
+
+@app.get("/static/reports/{report_id}.pdf")
+def get_pdf_report(report_id: str):
+    import hashlib
+    import logging
+    from fastapi.responses import FileResponse
+    import urllib.request
+    
+    _DATA_ROOT = "/tmp"
+    pdf_path = f"{_DATA_ROOT}/inspections/reports/{report_id}.pdf"
+    
+    # If the PDF already exists on disk, serve it immediately
+    if os.path.exists(pdf_path):
+        return FileResponse(pdf_path, media_type="application/pdf", filename=f"{report_id}.pdf")
+        
+    # Otherwise, rebuild it dynamically from database record
+    db = _get_db()
+    record = db.get_record_by_report_id(report_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Inspection record not found")
+        
+    try:
+        from src.reporting.reporter import WeldReporter
+        pdf_dir = f"{_DATA_ROOT}/inspections/reports"
+        os.makedirs(pdf_dir, exist_ok=True)
+        
+        # In serverless, the annotated image is not stored locally.
+        # We download it from the ML backend if it exists.
+        annotated_storage_path = f"{_DATA_ROOT}/inspections/annotated/{report_id}.jpg"
+        if not os.path.exists(annotated_storage_path):
+            os.makedirs(os.path.dirname(annotated_storage_path), exist_ok=True)
+            ml_url = os.environ.get("ML_BACKEND_URL", "http://localhost:8000")
+            if ml_url.endswith("/"):
+                ml_url = ml_url[:-1]
+            remote_img_url = f"{ml_url}/static/annotated/{report_id}.jpg"
+            try:
+                # Set a short timeout for downloading the image
+                req = urllib.request.Request(remote_img_url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=5) as response, open(annotated_storage_path, "wb") as out_file:
+                    out_file.write(response.read())
+            except Exception as dl_err:
+                logging.warning(f"Could not download remote annotated image from {remote_img_url}: {dl_err}")
+                # Fallback to copy placeholder or raw image if exists
+                raw_local = f"{_DATA_ROOT}/raw/{report_id}.jpg"
+                if os.path.exists(raw_local):
+                    import shutil
+                    shutil.copy(raw_local, annotated_storage_path)
+
+        # Retrieve vision cache to construct findings
+        model_name = os.path.basename(record.model_used)
+        cache_key = hashlib.sha256(f"{record.image_id}_{model_name}".encode('utf-8')).hexdigest()
+        
+        detections = []
+        try:
+            cached = db.get_vision_cache(cache_key)
+            if cached and "detections" in cached:
+                detections = cached["detections"]
+        except Exception as cache_err:
+            logging.warning(f"Failed to query vision cache: {cache_err}")
+
+        findings = []
+        for d in detections:
+            # d is a dict: type, confidence, bbox, dims
+            dims = d.get("dims", {})
+            mm_len = dims.get("length", 0.0) * 0.1
+            status = "Accept"
+            d_type_lower = d.get("type", "").lower()
+            if d_type_lower in ["crack", "lack_of_fusion", "lack of fusion"]:
+                status = "Reject"
+            elif d_type_lower in ["porosity", "pora", "hidden_porosity", "pora-skrytaya"]:
+                if mm_len > (record.thickness * 0.333):
+                    status = "Reject"
+            elif d_type_lower in ["inclusion", "vkljuchenie"]:
+                if mm_len > (record.thickness * 0.5):
+                    status = "Reject"
+            
+            findings.append({
+                "type": str(d.get("type", "")).encode('latin-1', 'replace').decode('latin-1'),
+                "size_mm": mm_len,
+                "status": status
+            })
+            
+        report_data = {
+            "report_id": record.report_id,
+            "thickness": record.thickness,
+            "material": str(record.material).encode('latin-1', 'replace').decode('latin-1'),
+            "regulatory_code": str(record.regulatory_code).encode('latin-1', 'replace').decode('latin-1'),
+            "client_spec": str(record.client_spec).encode('latin-1', 'replace').decode('latin-1'),
+            "other_standard": str(record.other_standard).encode('latin-1', 'replace').decode('latin-1'),
+            "app_type": str(record.app_type).encode('latin-1', 'replace').decode('latin-1'),
+            "usage": str(record.usage).encode('latin-1', 'replace').decode('latin-1'),
+            "findings": findings,
+            "agent_reasoning": record.details,
+            "performer_comments": record.performer_comments,
+            "supervisor_comments": record.supervisor_comments,
+            "status_state": record.status_state
+        }
+        
+        reporter = WeldReporter()
+        reporter.create_report(pdf_path, report_data, annotated_storage_path)
+        logging.info(f"Dynamically generated PDF report for {report_id} on Vercel at {pdf_path}")
+        
+        if os.path.exists(pdf_path):
+            return FileResponse(pdf_path, media_type="application/pdf", filename=f"{report_id}.pdf")
+        else:
+            raise HTTPException(status_code=500, detail="Failed to generate PDF file on Vercel disk")
+            
+    except Exception as e:
+        logging.error(f"Failed to dynamically generate PDF report on Vercel for {report_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF on Vercel: {str(e)}")
+
