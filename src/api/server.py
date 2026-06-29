@@ -102,6 +102,13 @@ async def inspect_weld(
     with open(raw_storage_path, "wb") as buffer:
         buffer.write(file_bytes)
         
+    model_mapping = {
+        "YOLOv8": "weights/yolov8_weld.pt",
+        "RT-DETR (Fine-tuned)": "weights/rtdetr_weld.pt"
+    }
+    actual_model_path = model_mapping.get(model_path, "weights/rtdetr_weld.pt")
+
+        
     try:
         # 2. Enhance the uploaded image using WeldProcessor on the backend
         processor = WeldProcessor()
