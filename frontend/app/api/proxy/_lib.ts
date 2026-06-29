@@ -6,7 +6,7 @@ export function backendBase(req: Request): string {
   let base = req.headers.get('x-api-base') ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
   // If the frontend requests /api/ec2, route it DIRECTLY to the EC2 IP to avoid Vercel SSO loopback blocking
   if (base === '/api/ec2') {
-    return 'http://3.14.150.6:8000'
+    return 'http://3.14.150.6'
   }
   if (base.startsWith('/')) {
     const origin = new URL(req.url).origin
