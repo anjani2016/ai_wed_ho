@@ -226,56 +226,7 @@ async def inspect_weld(
         # 8. Save the annotated image to disk for static serving
         cv2.imwrite(annotated_storage_path, annotated_img)
             
-        # 9. Generate and save the PDF report to disk
-        try:
-            from src.reporting.reporter import WeldReporter
-            pdf_dir = f"{_DATA_ROOT}/inspections/reports"
-            os.makedirs(pdf_dir, exist_ok=True)
-            pdf_path = f"{pdf_dir}/{report_id}.pdf"
-            
-            findings = []
-            for d in defects:
-                mm_len = d.dims.get("length", 0.0) * 0.1
-                status = "Accept"
-                d_type_lower = d.type.lower()
-                if d_type_lower in ["crack", "lack_of_fusion", "lack of fusion"]:
-                    status = "Reject"
-                elif d_type_lower in ["porosity", "pora", "hidden_porosity", "pora-skrytaya"]:
-                    if mm_len > (thickness * 0.333):
-                        status = "Reject"
-                elif d_type_lower in ["inclusion", "vkljuchenie"]:
-                    if mm_len > (thickness * 0.5):
-                        status = "Reject"
-                
-                findings.append({
-                    "type": str(d.type).encode('latin-1', 'replace').decode('latin-1'),
-                    "size_mm": mm_len,
-                    "status": status
-                })
-            
-            report_data = {
-                "report_id": report_id,
-                "thickness": thickness,
-                "material": str(material).encode('latin-1', 'replace').decode('latin-1'),
-                "regulatory_code": str(regulatory_code).encode('latin-1', 'replace').decode('latin-1'),
-                "client_spec": str(client_spec).encode('latin-1', 'replace').decode('latin-1'),
-                "other_standard": str(other_standard).encode('latin-1', 'replace').decode('latin-1'),
-                "app_type": str(app_type).encode('latin-1', 'replace').decode('latin-1'),
-                "usage": str(usage).encode('latin-1', 'replace').decode('latin-1'),
-                "findings": findings,
-                "agent_reasoning": agent_output,
-                "performer_comments": "",
-                "supervisor_comments": "",
-                "status_state": 0
-            }
-            
-            reporter = WeldReporter()
-            reporter.create_report(pdf_path, report_data, annotated_storage_path)
-            logging.info(f"Generated PDF report for {report_id} at {pdf_path}")
-        except Exception as pdf_err:
-            logging.error(f"Failed to generate PDF report for {report_id}: {pdf_err}")
-            
-        # 10. Ensure the report is saved to the database (MongoDB/SQLite fallback)
+        # 9. Ensure the report is saved to the database (MongoDB/SQLite fallback)
         try:
             record_check = db_adapter.get_record_by_report_id(report_id)
             if not record_check:
@@ -420,73 +371,7 @@ async def submit_feedback(
         "details": f"User '{x_user_role}' submitted {role} comments for report {report_id} (State: {record.status_state})"
     })
     
-    # 4. Regenerate the PDF report
-    try:
-        from src.reporting.reporter import WeldReporter
-        pdf_dir = "data/inspections/reports"
-        os.makedirs(pdf_dir, exist_ok=True)
-        pdf_path = f"{pdf_dir}/{report_id}.pdf"
-        
-        # Load image to re-detect (hitting cache)
-        raw_storage_path = f"data/{record.raw_image_path}"
-        if not os.path.exists(raw_storage_path):
-            raw_storage_path = f"data/inspections/{record.raw_image_path}"
-        annotated_storage_path = f"data/inspections/{record.annotated_image_path}"
-        
-        if os.path.exists(raw_storage_path):
-            img_np = cv2.imread(raw_storage_path, cv2.IMREAD_GRAYSCALE)
-            with open(raw_storage_path, "rb") as f:
-                file_bytes = f.read()
-            img_hash = hashlib.sha256(file_bytes).hexdigest()
-            
-            from src.infrastructure.adapters.ultralytics_adapter import UltralyticsAdapter
-            vision_adapter = UltralyticsAdapter(record.model_used, db_adapter)
-            defects = vision_adapter.detect(img_np, image_hash=img_hash)
-        else:
-            defects = []
-            
-        findings = []
-        for d in defects:
-            mm_len = d.dims.get("length", 0.0) * 0.1
-            status = "Accept"
-            d_type_lower = d.type.lower()
-            if d_type_lower in ["crack", "lack_of_fusion", "lack of fusion"]:
-                status = "Reject"
-            elif d_type_lower in ["porosity", "pora", "hidden_porosity", "pora-skrytaya"]:
-                if mm_len > (record.thickness * 0.333):
-                    status = "Reject"
-            elif d_type_lower in ["inclusion", "vkljuchenie"]:
-                if mm_len > (record.thickness * 0.5):
-                    status = "Reject"
-            
-            findings.append({
-                "type": str(d.type).encode('latin-1', 'replace').decode('latin-1'),
-                "size_mm": mm_len,
-                "status": status
-            })
-            
-        report_data = {
-            "report_id": record.report_id,
-            "thickness": record.thickness,
-            "material": str(record.material).encode('latin-1', 'replace').decode('latin-1'),
-            "regulatory_code": str(record.regulatory_code).encode('latin-1', 'replace').decode('latin-1'),
-            "client_spec": str(record.client_spec).encode('latin-1', 'replace').decode('latin-1'),
-            "other_standard": str(record.other_standard).encode('latin-1', 'replace').decode('latin-1'),
-            "app_type": str(record.app_type).encode('latin-1', 'replace').decode('latin-1'),
-            "usage": str(record.usage).encode('latin-1', 'replace').decode('latin-1'),
-            "findings": findings,
-            "agent_reasoning": record.details,
-            "performer_comments": record.performer_comments,
-            "supervisor_comments": record.supervisor_comments,
-            "status_state": record.status_state
-        }
-        
-        reporter = WeldReporter()
-        reporter.create_report(pdf_path, report_data, annotated_storage_path)
-        logging.info(f"Regenerated PDF report for {report_id} at {pdf_path}")
-    except Exception as pdf_err:
-        logging.error(f"Failed to regenerate PDF report for {report_id}: {pdf_err}")
-        return {"status": "error", "message": f"Failed to regenerate PDF: {str(pdf_err)}"}
+    # 4. Skip PDF generation since we now render the report natively in the UI
         
     return {
         "status": "success",
