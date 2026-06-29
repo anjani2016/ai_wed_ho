@@ -76,6 +76,20 @@ def _resolve_boto3_session() -> boto3.Session:
     return boto3.Session(region_name=AWS_REGION)
 
 
+from decimal import Decimal
+
+def _floats_to_decimals(obj: Any) -> Any:
+    """Recursively convert float to Decimal for DynamoDB compatibility."""
+    if isinstance(obj, float):
+        # DynamoDB requires decimals to be instantiated from strings to avoid precision issues
+        return Decimal(str(obj))
+    elif isinstance(obj, dict):
+        return {k: _floats_to_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_floats_to_decimals(v) for v in obj]
+    return obj
+
+
 def _record_to_item(record: InspectionRecord) -> Dict[str, Any]:
     """Serialize an InspectionRecord to a DynamoDB item dict."""
     item = record.__dict__.copy()
@@ -90,6 +104,7 @@ def _item_to_record(item: Dict[str, Any]) -> InspectionRecord:
     """Deserialize a DynamoDB item dict back to an InspectionRecord."""
     # Remove DynamoDB-specific keys before reconstructing
     clean = {k: v for k, v in item.items() if k not in ("PK", "SK", "entity_type", "updated_at")}
+    # Convert Decimals back to float/int if needed, but Pydantic will auto-coerce them
     return InspectionRecord(**clean)
 
 
@@ -127,7 +142,7 @@ class DynamoDBAdapter(DatabasePort):
     def save_record(self, record: InspectionRecord) -> str:
         item = _record_to_item(record)
         item["created_at"] = datetime.now(timezone.utc).isoformat()
-        self.table.put_item(Item=item)
+        self.table.put_item(Item=_floats_to_decimals(item))
         return record.report_id
 
     def update_record(self, record: InspectionRecord) -> None:
@@ -147,7 +162,7 @@ class DynamoDBAdapter(DatabasePort):
             Key={"PK": item["PK"], "SK": "RECORD"},
             UpdateExpression="SET " + ", ".join(updates),
             ExpressionAttributeNames=expr_names,
-            ExpressionAttributeValues=expr_values,
+            ExpressionAttributeValues=_floats_to_decimals(expr_values),
         )
 
     def get_records(self) -> List[InspectionRecord]:
@@ -187,7 +202,7 @@ class DynamoDBAdapter(DatabasePort):
             "feedback_id": feedback_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        self.table.put_item(Item=item)
+        self.table.put_item(Item=_floats_to_decimals(item))
         return feedback_id
 
     def get_feedback(self) -> List[Dict[str, Any]]:
@@ -202,16 +217,16 @@ class DynamoDBAdapter(DatabasePort):
         response = self.table.get_item(Key={"PK": f"VISION_CACHE#{image_hash}", "SK": "CACHE"})
         return response.get("Item")
 
-    def save_vision_cache(self, image_hash: str, detections: Dict[str, Any]) -> str:
+    def save_vision_cache(self, image_hash: str, detections: List[Dict[str, Any]]) -> str:
         item = {
-            **detections,
+            "detections": detections,
             "PK": f"VISION_CACHE#{image_hash}",
             "SK": "CACHE",
             "entity_type": "VISION_CACHE",
             "image_hash": image_hash,
             "cached_at": datetime.now(timezone.utc).isoformat(),
         }
-        self.table.put_item(Item=item)
+        self.table.put_item(Item=_floats_to_decimals(item))
         return image_hash
 
     # ── Enterprise Audit Trails ──────────────────────────────────────────────
