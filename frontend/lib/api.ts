@@ -10,6 +10,24 @@ function proxyHeaders(): HeadersInit {
   }
 }
 
+export async function fetchWithTimeout(url: string, options: RequestInit = {}) {
+  const { timeout = 8000 } = options as any
+
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeout)
+
+  const headers = new Headers(options.headers || {})
+  headers.set('Bypass-Tunnel-Reminder', 'true') // Bypass localtunnel warning screen
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+    signal: controller.signal,
+  })
+  clearTimeout(id)
+  return response
+}
+
 export async function checkLicense(): Promise<{ ok: boolean; message: string }> {
   try {
     const res = await fetch('/api/proxy/license', { headers: proxyHeaders() })
