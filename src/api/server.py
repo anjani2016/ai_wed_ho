@@ -306,12 +306,15 @@ async def inspect_weld(
 
         # Convert annotated image to base64
         _, img_buffer = cv2.imencode('.jpg', annotated_img)
-        img_b64 = base64.b64encode(img_buffer).decode('utf-8')
+        img_b64 = "data:image/jpeg;base64," + base64.b64encode(img_buffer).decode('utf-8')
         
         return {
             "status": "success",
             "report_id": report_id,
-            "result": agent_output,
+            "result": {
+                "verdict": "PASS" if "STATUS: PASS" in agent_output else "REJECT",
+                "reasoning": agent_output
+            },
             "annotated_image": img_b64,
             "defects": [d.model_dump() for d in defects]
         }
