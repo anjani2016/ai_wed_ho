@@ -106,7 +106,9 @@ async def inspect_weld(
         "YOLOv8": "weights/yolov8_weld.pt",
         "RT-DETR (Fine-tuned)": "weights/rtdetr_weld.pt"
     }
-    actual_model_path = model_mapping.get(model_path, "weights/rtdetr_weld.pt")
+    actual_model_path = model_mapping.get(model_path, "weights/m60.pt")
+    if not os.path.exists(actual_model_path):
+        actual_model_path = "weights/m60.pt"
 
         
     try:
