@@ -2,16 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleProxy(request, params.path)
+  const resolvedParams = await params
+  return handleProxy(request, resolvedParams.path)
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleProxy(request, params.path)
+  const resolvedParams = await params
+  return handleProxy(request, resolvedParams.path)
 }
 
 async function handleProxy(request: NextRequest, pathArray: string[]) {
