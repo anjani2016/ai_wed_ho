@@ -17,7 +17,12 @@ export function backendBase(req: Request): string {
 
 export function forwardHeaders(req: Request): HeadersInit {
   const role = req.headers.get('x-user-role') ?? 'Inspector'
-  return { 'x-user-role': role }
+  const bypass = req.headers.get('Bypass-Tunnel-Reminder')
+  const headers: Record<string, string> = { 'x-user-role': role }
+  if (bypass) {
+    headers['Bypass-Tunnel-Reminder'] = bypass
+  }
+  return headers
 }
 
 // Short timeout so an unreachable backend fails fast and the client can fall

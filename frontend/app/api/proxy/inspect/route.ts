@@ -23,6 +23,9 @@ export async function POST(req: Request) {
   if (req.headers.has('x-user-role')) {
     reqHeaders['x-user-role'] = req.headers.get('x-user-role')!;
   }
+  if (req.headers.has('Bypass-Tunnel-Reminder')) {
+    reqHeaders['Bypass-Tunnel-Reminder'] = req.headers.get('Bypass-Tunnel-Reminder')!;
+  }
   // Note: Do NOT manually forward Content-Type. fetch() will automatically generate
   // a new Content-Type header with the correct boundary for the forwarded formData.
 
