@@ -110,7 +110,7 @@ async def inspect_weld(
         cv2.imwrite(raw_storage_path, enhanced_img)
         
         # 3. Instantiate Adapters and Core Orchestrator (Injecting DB for caching & standards)
-        vision_adapter = UltralyticsAdapter(model_path, db_adapter)
+        vision_adapter = UltralyticsAdapter(actual_model_path, db_adapter)
         compliance_adapter = LocalComplianceAdapter(db_adapter)
         
         orchestrator = InspectionOrchestrator(vision_adapter, db_adapter, compliance_adapter)
@@ -123,7 +123,7 @@ async def inspect_weld(
         # 5. Run the agent workflow
         agent_output = await orchestrator.run(
             raw_storage_path, 
-            model_path, 
+            actual_model_path, 
             thickness, 
             image_hash=image_hash,
             app_type=app_type,
