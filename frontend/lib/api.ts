@@ -52,6 +52,9 @@ export async function fetchRecords(): Promise<InspectionRecord[]> {
     ...r,
     performer_remarks: r.performer_comments,
     supervisor_remarks: r.supervisor_comments,
+    annotated_image: r.annotated_image_path ? `${getApiUrl()}/static/${r.annotated_image_path}` : null,
+    original_image: r.raw_image_path ? `${getApiUrl()}/static/${r.raw_image_path}` : null,
+    reasoning: r.details,
   }))
 }
 
