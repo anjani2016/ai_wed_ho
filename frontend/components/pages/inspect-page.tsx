@@ -27,7 +27,7 @@ import { AnnotatedImage } from '@/components/annotated-image'
 import { DefectsTable } from '@/components/defects-table'
 import { useToast } from '@/components/toast'
 import { runInspection } from '@/lib/api'
-import { getRole } from '@/lib/config'
+import { getRole, getApiUrl } from '@/lib/config'
 import {
   APP_TYPES,
   MATERIALS,
@@ -440,13 +440,14 @@ function ResultsPanel({
         </div>
         <Button
           variant="outline"
-          onClick={() =>
+          onClick={() => {
             toast({
               variant: 'info',
               title: 'Generating PDF',
               description: `Report ${record.report_id} is being prepared for download.`,
             })
-          }
+            window.open(`${getApiUrl()}/static/reports/${record.report_id}.pdf`, '_blank')
+          }}
         >
           <FileDown />
           Download PDF Report
