@@ -102,23 +102,17 @@ class InspectionOrchestrator:
             )
             return self.db_port.save_record(record)
 
-        from google.antigravity import GeminiConfig
-        
         # Check if Vertex AI mode is active in .env
         use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "False").lower() in ["true", "1"]
-        g_config = None
-        model_name = None
-        if use_vertex:
-            g_config = GeminiConfig(
-                vertex=True,
-                project=os.environ.get("GOOGLE_CLOUD_PROJECT", "ai-weld-inspector-hackathon"),
-                location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
-            )
-            model_name = "gemini-2.5-flash"
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT", "ai-weld-inspector-hackathon") if use_vertex else None
+        location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1") if use_vertex else None
+        model_name = "gemini-2.5-flash" if use_vertex else None
             
         # Agent Configuration
         config = LocalAgentConfig(
-            gemini_config=g_config,
+            vertex=use_vertex if use_vertex else None,
+            project=project,
+            location=location,
             model=model_name,
             tools=[detect_weld_defects, get_compliance_rules, log_inspection_to_database],
             system_instructions=(
