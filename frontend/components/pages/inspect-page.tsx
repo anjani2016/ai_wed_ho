@@ -26,7 +26,7 @@ import { VerdictBadge } from '@/components/ui/badges'
 import { AnnotatedImage } from '@/components/annotated-image'
 import { DefectsTable } from '@/components/defects-table'
 import { useToast } from '@/components/toast'
-import { runInspection } from '@/lib/api'
+import { runInspection, submitFeedback } from '@/lib/api'
 import { getRole, getApiUrl } from '@/lib/config'
 import {
   APP_TYPES,
@@ -190,15 +190,24 @@ export function InspectPage({
     })
   }
 
-  const handleRemarks = () => {
-    if (!remarks.trim()) return
-    addAudit('SUBMIT_FEEDBACK', `Performer remarks added to ${result?.report_id}`)
-    toast({
-      variant: 'success',
-      title: 'Remarks submitted',
-      description: 'Performer remarks recorded on the inspection.',
-    })
-    setRemarks('')
+  const handleRemarks = async () => {
+    if (!remarks.trim() || !result) return
+    try {
+      await submitFeedback(result.report_id, remarks, getRole())
+      addAudit('SUBMIT_FEEDBACK', `Performer remarks added to ${result.report_id}`)
+      toast({
+        variant: 'success',
+        title: 'Remarks submitted',
+        description: 'Performer remarks recorded on the inspection.',
+      })
+      setRemarks('')
+    } catch (e) {
+      toast({
+        variant: 'error',
+        title: 'Submission failed',
+        description: 'Failed to submit remarks to the server.',
+      })
+    }
   }
 
   return (

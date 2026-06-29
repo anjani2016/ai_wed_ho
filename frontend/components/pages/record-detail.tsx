@@ -40,7 +40,7 @@ export function RecordDetail({
       return
     }
     try {
-      await submitFeedback(record.report_id, comment || 'Approved', role)
+      await submitFeedback(record.report_id, comment || 'Approved', 'Supervisor')
     } catch {
       /* offline: still update locally */
     }

@@ -47,7 +47,12 @@ export async function fetchRecords(): Promise<InspectionRecord[]> {
   const res = await fetch('/api/proxy/records', { headers: proxyHeaders() })
   if (!res.ok) throw new Error(`Failed to fetch records (${res.status})`)
   const data = await res.json()
-  return data.records ?? []
+  const records = data.records ?? []
+  return records.map((r: any) => ({
+    ...r,
+    performer_remarks: r.performer_comments,
+    supervisor_remarks: r.supervisor_comments,
+  }))
 }
 
 export async function submitFeedback(
