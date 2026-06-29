@@ -1,3 +1,6 @@
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
 from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
@@ -574,3 +577,10 @@ async def get_pdf_report(report_id: str):
 
 
 
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"Validation error for request: {request.url}")
+    print(f"Headers: {request.headers}")
+    print(f"Body missing fields: {exc.errors()}")
+    return JSONResponse(status_code=422, content={"detail": exc.errors(), "body": str(exc)})
