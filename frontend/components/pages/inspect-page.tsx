@@ -25,6 +25,7 @@ import {
 import { VerdictBadge } from '@/components/ui/badges'
 import { AnnotatedImage } from '@/components/annotated-image'
 import { DefectsTable } from '@/components/defects-table'
+import { RecordDetail } from '@/components/pages/record-detail'
 import { useToast } from '@/components/toast'
 import { runInspection, submitFeedback } from '@/lib/api'
 import { getRole, getApiUrl } from '@/lib/config'
@@ -412,6 +413,8 @@ function ResultsPanel({
 }) {
   const { toast } = useToast()
   const pass = record.verdict === 'PASS'
+  const [showReport, setShowReport] = useState(false)
+
   return (
     <Card className="glass animate-fade-in-up overflow-hidden">
       <div
@@ -448,18 +451,10 @@ function ResultsPanel({
           </div>
         </div>
         <Button
-          variant="outline"
-          onClick={() => {
-            toast({
-              variant: 'info',
-              title: 'Generating PDF',
-              description: `Report ${record.report_id} is being prepared for download.`,
-            })
-            window.open(`${getApiUrl()}/static/reports/${record.report_id}.pdf`, '_blank')
-          }}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+          onClick={() => setShowReport(true)}
         >
-          <FileDown />
-          Download PDF Report
+          View Detailed Report
         </Button>
       </div>
 
@@ -498,32 +493,22 @@ function ResultsPanel({
             {record.reasoning}
           </div>
         </div>
-
-        <div>
-          <p className="mb-2 text-sm font-semibold text-foreground">
-            Detected Defects
-          </p>
-          <DefectsTable defects={record.defects} />
-        </div>
-
-        <div>
-          <p className="mb-2 text-sm font-semibold text-foreground">
-            Performer Remarks
-          </p>
-          <Textarea
-            rows={3}
-            placeholder="Add remarks on this inspection…"
-            value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
-          />
-          <div className="mt-2 flex justify-end">
-            <Button onClick={onSubmitRemarks} disabled={!remarks.trim()}>
-              <Send />
-              Submit Remarks
-            </Button>
-          </div>
-        </div>
       </CardContent>
+      {showReport && (
+        <RecordDetail
+          record={record}
+          onClose={() => setShowReport(false)}
+          updateRecord={(id, patch) => {
+            // Re-render UI with the patched record if needed
+            toast({
+              variant: 'info',
+              title: 'Record Updated',
+              description: 'The report has been successfully updated.',
+            })
+          }}
+          addAudit={() => {}}
+        />
+      )}
     </Card>
   )
 }
