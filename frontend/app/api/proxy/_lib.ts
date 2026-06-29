@@ -3,11 +3,12 @@
 // so a single deployment can target any FastAPI instance (e.g. localhost:8000).
 
 export function backendBase(req: Request): string {
-  return (
-    req.headers.get('x-api-base') ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    'http://localhost:8000'
-  )
+  let base = req.headers.get('x-api-base') ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+  if (base.startsWith('/')) {
+    const origin = new URL(req.url).origin
+    base = `${origin}${base}`
+  }
+  return base
 }
 
 export function forwardHeaders(req: Request): HeadersInit {
