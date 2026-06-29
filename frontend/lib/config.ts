@@ -20,7 +20,7 @@ export type UserRole =
 export function getApiUrl(): string {
   if (typeof window === 'undefined') return DEFAULT_API_URL
   let url = window.localStorage.getItem(STORAGE_KEY) ?? DEFAULT_API_URL
-  if (url && !/^https?:\/\//i.test(url)) {
+  if (url && !url.startsWith('/') && !/^https?:\/\//i.test(url)) {
     // If it looks like an IP address or localhost, use http, otherwise https
     url = url.includes('localhost') || url.match(/^\d{1,3}\./) ? `http://${url}` : `https://${url}`
   }
